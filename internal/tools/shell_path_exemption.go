@@ -164,6 +164,15 @@ func hasPathPrefix(path, prefix string) bool {
 func parseExecCommandWords(command string) []string {
 	var words []string
 	for _, segment := range splitExecCommandSegments(command) {
+		if runtime.GOOS == "windows" {
+			// cmd.exe treats backslashes as literal path separators. The
+			// go-shellwords parser follows POSIX escaping rules and turns
+			// C:\\data\\file into C:datafile, which bypasses path
+			// canonicalization. Keep Windows path separators intact while
+			// still removing command-line quotes.
+			words = append(words, parseWindowsCommandSegment(segment)...)
+			continue
+		}
 		parser := shellwords.NewParser()
 		parser.ParseBacktick = false
 		parser.ParseEnv = false
@@ -178,6 +187,40 @@ func parseExecCommandWords(command string) []string {
 	if len(words) == 0 {
 		return strings.Fields(command)
 	}
+	return words
+}
+
+func parseWindowsCommandSegment(segment string) []string {
+	var words []string
+	var word strings.Builder
+	inSingle, inDouble := false, false
+	flush := func() {
+		if word.Len() > 0 {
+			words = append(words, word.String())
+			word.Reset()
+		}
+	}
+	for _, ch := range segment {
+		switch ch {
+		case '\'':
+			if !inDouble {
+				inSingle = !inSingle
+				continue
+			}
+		case '"':
+			if !inSingle {
+				inDouble = !inDouble
+				continue
+			}
+		case ' ', '\t':
+			if !inSingle && !inDouble {
+				flush()
+				continue
+			}
+		}
+		word.WriteRune(ch)
+	}
+	flush()
 	return words
 }
 
@@ -198,7 +241,7 @@ func splitExecCommandSegments(command string) []string {
 				inSingle = false
 			}
 		case inDouble:
-			if ch == '\\' && i+1 < len(command) {
+			if runtime.GOOS != "windows" && ch == '\\' && i+1 < len(command) {
 				i++
 			} else if ch == '"' {
 				inDouble = false
@@ -206,7 +249,7 @@ func splitExecCommandSegments(command string) []string {
 		default:
 			switch ch {
 			case '\\':
-				if i+1 < len(command) {
+				if runtime.GOOS != "windows" && i+1 < len(command) {
 					i++
 				}
 			case '\'':

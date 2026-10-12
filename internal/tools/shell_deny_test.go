@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -388,6 +389,26 @@ func TestPathExemptions(t *testing.T) {
 // TestPathExemptions_MixedArgs verifies that a command with both a denied
 // path and an exempt path in different arguments is correctly denied.
 // Per-field matching ensures the non-exempt field causes denial.
+func TestPathExemptions_WindowsBackslashPath(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows command paths only")
+	}
+	dataDir := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	tool := &ExecTool{}
+	tool.DenyPaths(dataDir)
+	exempt := filepath.Join(dataDir, "skills-store")
+	tool.AllowPathExemptions(exempt)
+	command := `python3 "` + filepath.Join(exempt, "skill", "scripts", "run.py") + `"`
+	fields := parseExecCommandWords(command)
+	if len(fields) != 2 || fields[1] != filepath.Join(exempt, "skill", "scripts", "run.py") {
+		t.Fatalf("parseExecCommandWords(%q) = %#v; Windows backslashes must be preserved", command, fields)
+	}
+	if !matchesAnyPathExemption(fields[1], tool.denyExemptions, workspace) {
+		t.Fatalf("Windows path %q did not match its exemption", fields[1])
+	}
+}
+
 func TestPathExemptions_MixedArgs(t *testing.T) {
 	dataDir := t.TempDir()
 	workspace := filepath.Join(t.TempDir(), "workspace")

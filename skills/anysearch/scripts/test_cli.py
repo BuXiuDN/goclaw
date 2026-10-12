@@ -239,6 +239,7 @@ def test_runtime(name, command, base_url):
         base_url,
     )
     require(result.returncode == 0 and "Result AAPL" in result.stdout, f"{name}: search failed", result)
+    require("Request ID: req-AAPL" in result.stdout, f"{name}: successful search omitted request_id", result)
     request = STATE.requests[-1]
     require(request["path"] == "/v1/search", f"{name}: wrong search path")
     require(request["body"].get("tag") == "finance.quote", f"{name}: sub_domain was not translated")
@@ -260,6 +261,7 @@ def test_runtime(name, command, base_url):
     STATE.reset()
     result = run(command, ["extract", "https://example.com/article"], base_url)
     require(result.returncode == 0 and "External page content (untrusted)" in result.stdout and "page body" in result.stdout, f"{name}: extract failed", result)
+    require("Request ID: req-extract" in result.stdout, f"{name}: successful extract omitted request_id", result)
     require(STATE.requests[-1]["path"] == "/v1/extract", f"{name}: wrong extract path")
 
     STATE.reset()
@@ -284,16 +286,20 @@ def test_runtime(name, command, base_url):
     require(slow["body"].get("tag") == "finance.quote" and slow["body"].get("params") == {"symbol": "SLOW"}, f"{name}: batch legacy translation failed")
     require(all(item["path"] != "/mcp" for item in STATE.requests), f"{name}: MCP endpoint was called")
 
-    if name == "bash":
-        STATE.reset()
-        malformed = json.dumps([{"query": "bad-format"}])
-        result = run(command, ["batch_search", "--queries", malformed], base_url)
-        require(result.returncode != 0, "bash: batch formatter failure exited zero", result)
-        require(
-            "failed to format search response for query 1" in result.stderr,
-            "bash: batch formatter failure did not report its query index",
-            result,
-        )
+    STATE.reset()
+    malformed = json.dumps([{"query": "bad-format"}])
+    result = run(command, ["batch_search", "--queries", malformed], base_url)
+    require(result.returncode != 0, f"{name}: batch formatter failure exited zero", result)
+    require(
+        "failed to format search response for query 1" in result.stderr,
+        f"{name}: batch formatter failure did not report its query index",
+        result,
+    )
+
+    STATE.reset()
+    all_failed = json.dumps([{"query": "fail"}, {"query": "drop"}])
+    result = run(command, ["batch_search", "--queries", all_failed], base_url)
+    require(result.returncode != 0, f"{name}: all-failed batch exited zero", result)
 
 
 def main():

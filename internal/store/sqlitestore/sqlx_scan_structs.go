@@ -46,7 +46,7 @@ type tenantRow struct {
 	Name      string          `json:"name" db:"name"`
 	Slug      string          `json:"slug" db:"slug"`
 	Status    string          `json:"status" db:"status"`
-	Settings  json.RawMessage `json:"settings" db:"settings"`
+	Settings  sqliteJSONValue `json:"settings" db:"settings"`
 	CreatedAt sqliteTime      `json:"created_at" db:"created_at"`
 	UpdatedAt sqliteTime      `json:"updated_at" db:"updated_at"`
 }
@@ -57,7 +57,7 @@ func (r *tenantRow) toTenantData() store.TenantData {
 		Name:      r.Name,
 		Slug:      r.Slug,
 		Status:    r.Status,
-		Settings:  r.Settings,
+		Settings:  json.RawMessage(r.Settings),
 		CreatedAt: r.CreatedAt.Time,
 		UpdatedAt: r.UpdatedAt.Time,
 	}
