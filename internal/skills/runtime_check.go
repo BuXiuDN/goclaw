@@ -42,7 +42,7 @@ func CheckRuntimes() *RuntimeStatus {
 	for _, c := range checks {
 		info := RuntimeInfo{Name: c.name}
 
-		bin := c.bin
+		bin := firstAvailableBinary(c.bin)
 		if runtime.GOOS == "windows" {
 			// Windows installations commonly expose Python and pip as
 			// `python.exe`/`pip.exe`, not the Unix-style `python3`/`pip3`.
@@ -96,8 +96,8 @@ func CheckRuntimes() *RuntimeStatus {
 
 func firstAvailableBinary(names ...string) string {
 	for _, name := range names {
-		if _, err := exec.LookPath(name); err == nil {
-			return name
+		if path, err := exec.LookPath(name); err == nil {
+			return path
 		}
 	}
 	return ""
