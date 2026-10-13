@@ -104,12 +104,15 @@ function restRequest(method, endpointPath, apikey, payload = undefined, params =
   });
 }
 
+function requestIdDetail(requestId) {
+  return requestId ? ` (request_id: ${requestId})` : "";
+}
+
 async function callOrExit(method, endpointPath, apikey, payload = undefined, params = []) {
   try {
     return await restRequest(method, endpointPath, apikey, payload, params);
   } catch (e) {
-    const detail = e.requestId ? ` (request_id: ${e.requestId})` : "";
-    console.error(`API Error: ${e.message}${detail}`);
+    console.error(`API Error: ${e.message}${requestIdDetail(e.requestId)}`);
     if (e.data && typeof e.data === "object" && Object.keys(e.data).length) {
       console.error(`Response data: ${JSON.stringify(e.data)}`);
     }
@@ -164,7 +167,7 @@ function formatCapabilitiesResponse(envelope, requestedDomains) {
       matched += 1;
     }
   }
-  return matched ? lines.join("\n").trimEnd() + requestIdFooter(envelope) + "\n" : `No capabilities available for domain "${requestedDomains.join(", ")}".\n`;
+  return matched ? lines.join("\n").trimEnd() + requestIdFooter(envelope) + "\n" : `No capabilities available for domain "${requestedDomains.join(", ")}".` + requestIdFooter(envelope) + "\n";
 }
 
 function formatExtractResponse(envelope) {
@@ -270,7 +273,7 @@ async function cmdSearch(opts) {
   try {
     process.stdout.write(formatSearchResponse(result));
   } catch (error) {
-    console.error(`Error: failed to format search response: ${error.message}`);
+    console.error(`Error: failed to format search response: ${error.message}${requestIdDetail(result.request_id)}`);
     process.exit(1);
   }
 }
@@ -437,14 +440,15 @@ async function cmdBatchSearch(opts) {
     output.push(`## Query ${index + 1}: ${query}`, "");
     if (error) {
       apiFailures += 1;
-      output.push(`Search failed: ${error.message}${error.requestId ? ` (request_id: ${error.requestId})` : ""}`);
+      output.push(`Search failed: ${error.message}${requestIdDetail(error.requestId)}`);
     } else {
       try {
         output.push(formatSearchResponse(response).trimEnd());
       } catch (formatError) {
         formatFailures += 1;
-        console.error(`failed to format search response for query ${index + 1}: ${formatError.message}`);
-        output.push("Search failed: invalid API response");
+        const detail = requestIdDetail(response.request_id);
+        console.error(`failed to format search response for query ${index + 1}: ${formatError.message}${detail}`);
+        output.push(`Search failed: invalid API response${detail}`);
       }
     }
     if (index < results.length - 1) output.push("", "---", "");
